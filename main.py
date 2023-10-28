@@ -3,13 +3,13 @@ from flask import Flask, request
 import requests
 import threading, time, os, shutil
 import judge
-import random, string
+import random, string, sys
 
-from dotenv import load_dotenv
-load_dotenv()
+# from dotenv import load_dotenv
+# load_dotenv()
 
-AUTHORIZATION = os.getenv('AUTHORIZATION')
-MAIN_URL = os.getenv('MAIN_URL')
+AUTHORIZATION = sys.argv[3]
+MAIN_URL = sys.argv[4]
 
 app = Flask(__name__)
 
@@ -25,7 +25,7 @@ def hello(*args, **kwargs):
 
 @app.route('/botfight', methods = ["POST"])
 def botfight():
-    if request.headers.get('authorization') != AUTHORIZATION:
+    if AUTHORIZATION == None or request.headers.get('authorization') != AUTHORIZATION:
         return {"response": "authorization not matched"}
 
     try:
@@ -38,5 +38,5 @@ def botfight():
 
 if __name__ == '__main__':
     if not os.path.exists('./tmp'): os.mkdir('./tmp')
-    app.run(host='127.0.0.1', port=3272)
+    app.run(host=sys.argv[1], port=sys.argv[2])
 
