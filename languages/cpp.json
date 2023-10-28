@@ -1,0 +1,5 @@
+{
+    "global_name": "C++",
+    "terminal": "g++ {file} -o {name}.exe",
+    "executable_file": "{name}.exe"
+}
