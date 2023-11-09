@@ -4,39 +4,41 @@ import requests
 import threading, time, os, shutil
 import judge
 import random, string, sys
+import time
+
 
 # from dotenv import load_dotenv
 # load_dotenv()
 
-AUTHORIZATION = sys.argv[3]
-MAIN_URL = sys.argv[4]
+# AUTHORIZATION = sys.argv[3]
+# MAIN_URL = sys.argv[4]
+# headers = {"authorization": AUTHORIZATION}
 
 app = Flask(__name__)
 
-def hello(*args, **kwargs):
-    try:
-        winner, response = judge.fighting(**kwargs)
-    except Exception as e:
-        winner, response = (-1, e)
-    headers = {"authorization": AUTHORIZATION}
-    data = {"winner": winner, "response": response}
-    requests.post(MAIN_URL, headers=headers, data=data)
-    
 
-@app.route('/botfight', methods = ["POST"])
-def botfight():
-    if AUTHORIZATION == None or request.headers.get('authorization') != AUTHORIZATION:
-        return {"response": "authorization not matched"}
+# def gogo(kwargs):
+#     try:
+#         data = judge.judge(**kwargs)
+#     except Exception as e:
+#         data = {"result": "error"}
+#     requests.post(MAIN_URL, headers=headers, data=data)
 
-    try:
-        winner, response = judge.fighting(**request.form)
-    except Exception as e: winner, response = (-1, str(e))
+@app.route('/status', methods=["GET"])
+def status():
+    return {"response": "success", "uptime":starttime,"languages": judge.status()}
+
+
+@app.route('/func/<string:func>', methods = ["POST"])
+def funcs(func):
+    # if AUTHORIZATION == None or request.headers.get('authorization') != AUTHORIZATION:
+    #     return {"response": "au1thorization not matched"}
     
-    data = {"winner": winner, "response": response}
-    return data
+    return {"response": "success", "data": eval(f"judge.{func}(**request.form)", globals(), locals())}
 
 
 if __name__ == '__main__':
     if not os.path.exists('./tmp'): os.mkdir('./tmp')
-    app.run(host=sys.argv[1], port=sys.argv[2])
+    starttime = time.time()
+    app.run(host='0.0.0.0', port='3000')
 

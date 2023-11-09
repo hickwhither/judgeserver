@@ -1,5 +1,0 @@
-{
-    "global_name": "Python 3",
-    "terminal": "python -m compileall -b {file}",
-    "executable_file": "{name}.pyc"
-}

@@ -1,9 +1,6 @@
 import random
 import os, json, tempfile, shutil
-import threading, subprocess, time, signal
-from interactor import create_subprc
-# from distutils.dir_util import copy_tree
-# from shutil import copyfile
+import threading, subprocess, time, signal, asyncio
 
 languages = {}
 
@@ -15,59 +12,112 @@ for _ in os.listdir('languages'):
         languages[_[:-5]] = json.load(f)
 
 
-def compilebot(langg, tempfolder, source, botname):
-    lang = languages.get(langg)
-    name = os.path.join(tempfolder, botname)
-    file1 = name + '.'+ langg
-    with open(file1, "w", encoding="utf-8") as f: f.write(source)
-    compiling = create_subprc(lang['terminal'].format(name=name,file=file1))
-    compiling.communicate()
-    return compiling, lang['executable_file'].format(name=name,file=file1)
+def status():
+    return list(languages.keys())
 
 
-def fighting(bot1lang, bot1source, bot2lang, bot2source, source, *args, **kwargs) -> tuple:
+def compile(code, lang, stdin):
+    lang = languages[lang]
+    
+    # Creating tempdict
+    td = tempfile.TemporaryDirectory(prefix="judgeserver_")
+    dname = td.name
+    codename = os.path.join(dname, "main")
+
+    ### Usercode ###
+    with open(lang['file'].format(name=codename), 'w', encoding="utf-8")as f:
+        f.write(code)
+    try: subprocess.run(lang['terminal'])
+    except subprocess.CalledProcessError as e: #Fail
+        return '', e
+    exefile = lang['executable_file'].format(name=codename)
+
+    popen = subprocess.Popen(exefile,cwd=dname,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    try: data = popen.communicate(bytes(stdin), timeout = 10)
+    except subprocess.TimeoutExpired: return '', 'killed'
+    return data[0].decode(), data[1].decode()
+
+
+
+async def ajudge(dname, exefile, generatorrun, timelimit):
+    
+    maxtime = 0.0
+
+    result = [None for i in range(len(generatorrun))]
+    generatorrun = generatorrun.strip().split('\n')
+
+    async def single(i, cline):
+        try: stdin = subprocess.check_output(cline, cwd=dname)
+        except subprocess.CalledProcessError as e:
+            result[i] = (None, e)
+            return
+        
+        exepopen = subprocess.Popen(exefile,cwd=dname,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        starttime = time.time()
+        try: stdout, stderr = exepopen.communicate(bytes(stdin), timeout = timelimit)
+        except subprocess.TimeoutExpired:
+            result[i] = (None, '', '', '', '', timelimit)
+            return
+        timedelta = time.time() - starttime
+        stdout = stdout.decode()
+        stderr = stderr.decode()
+        maxtime = max(maxtime, timedelta)
+
+        if exepopen.returncode:
+            result[i] = (None, exepopen.stderr)
+            return
+
+        with open(os.path.join(dname,'stdin.txt'), 'w') as f: f.write(stdin)
+        with open(os.path.join(dname,'stdout.txt'), 'w') as f: f.write(stdout)
+        p = subprocess.Popen('eva.exe',cwd=dname)
+        pin, perr = p.communicate(timeout=10)
+        pin = pin.decode()
+        perr = perr.decode()
+        
+        result[i] = pin, perr, stdin, stdout, stderr, timedelta
+
+    asyncio.gather(*[single(i, generatorrun[i]) for i in range(len(generatorrun))])
+
+    return result, maxtime
+
+
+
+
+def judge(code, lang, generator, generatorrun, evaluator, timelimit):
     """
-    (Winner, Response)
-    
-    `-1` -> Interactor error
-    
-    `0` -> Draw
-    
-    `1` -> Bot1 wins
-    
-    `2` -> Bot2 wins
+    - list [(evaluate, evaluator_response, stdin, stdout, stderr, time)]
+    - Compiler status
+    - Max time
     """
-    tp = tempfile.TemporaryDirectory(prefix="TCOJbattlebot_", dir='./tmp/')
-    tempfolder = tp.name
-
-
-    # Compile bot
-    compiling1, exefile1 = compilebot(bot1lang, tempfolder, bot1source, "bot1")
-    compiling2, exefile2 = compilebot(bot2lang, tempfolder, bot2source, "bot1")
-
-    # Fail
-
-    if compiling1.subprc.returncode!=0 or compiling2.subprc.returncode !=0:
-        if compiling1.subprc.returncode!=0 and compiling2.subprc.returncode!=0:
-            return (0, "Both compiler error")
-        elif compiling1.subprc.returncode!=0:
-            return (2, "Bot1 compiler error")
-        else:
-            return (1, "Bot2 Compiler error")
+    lang = languages[lang]
     
-    # Interactor shows up >;)
-    bot1 = create_subprc(exefile1)
-    bot2 = create_subprc(exefile2)
-    
-    try:
-        exec(source, locals())
-        res = locals()['judge'](bot1, bot2)
-        if type(res) != tuple: raise Exception("Interactor return error")
-        if res[0] not in [0, 1, 2]: raise Exception(f"Interactor return `{res[0]}` instead of win number")
-    except Exception as e:
-        res = (-1, str(e))
-    
-    bot1.terminate()
-    bot2.terminate()
+    # Creating tempdict
+    td = tempfile.TemporaryDirectory(prefix="judgeserver_")
+    dname = td.name
 
-    return res
+    ### Usercode ###
+    with open(os.path.join(dname, lang['file']), 'w', encoding="utf-8")as f:
+        f.write(code)
+    try: subprocess.run(lang['terminal'], cwd=dname)
+    except subprocess.CalledProcessError as e: #Fail
+        return [], f"Returned as {e.returncode}---\n{e.output}---\n{e.stderr}"
+    
+    exefile = lang['executable_file']
+    
+    ### Generator ###
+    with open(os.path.join(dname, "gen.cpp"), 'w', encoding="utf-8")as f:
+        f.write(generator)
+    try: subprocess.run("g++ --std=c++17 gen.cpp -o gen.exe", cwd=dname)
+    except subprocess.CalledProcessError as e: #Fail
+        return [], f"Generator Failed\nReturned as {e.returncode}---\n{e.output}---\n{e.stderr}"
+
+    ### Evaluator ###
+    with open(os.path.join(dname, "eva.cpp"), 'w', encoding="utf-8")as f:
+        f.write(evaluator)
+    try: subprocess.run("g++ --std=c++17 eva.cpp -o eva.exe", cwd=dname)
+    except subprocess.CalledProcessError: #Fail
+        return [], f"Evaluator Failed\nReturned as {e.returncode}---\n{e.output}---\n{e.stderr}"
+    
+    res = asyncio.run(ajudge(dname, exefile, generatorrun, timelimit))
+    return res[0], "", res[1]
+    

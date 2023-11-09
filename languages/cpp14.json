@@ -1,0 +1,5 @@
+{
+    "file": "{name}.cpp",
+    "terminal": "g++ --std=c++14 {name}.cpp -o {name}.exe",
+    "executable_file": "{name}.exe"
+}
