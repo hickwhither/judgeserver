@@ -7,12 +7,10 @@ import random, string, sys
 import time
 
 
-# from dotenv import load_dotenv
-# load_dotenv()
+from dotenv import load_dotenv
+env = load_dotenv()
 
-# AUTHORIZATION = sys.argv[3]
-# MAIN_URL = sys.argv[4]
-# headers = {"authorization": AUTHORIZATION}
+AUTHORIZATION = env['AUTHORIZATION']
 
 app = Flask(__name__)
 
@@ -26,13 +24,15 @@ app = Flask(__name__)
 
 @app.route('/status', methods=["GET"])
 def status():
+    if AUTHORIZATION == None or request.headers.get('authorization') != AUTHORIZATION:
+        return {"response": "au1thorization not matched"}
     return {"response": "success", "uptime":starttime,"languages": judge.status()}
 
 
 @app.route('/func/<string:func>', methods = ["POST"])
 def funcs(func):
-    # if AUTHORIZATION == None or request.headers.get('authorization') != AUTHORIZATION:
-    #     return {"response": "au1thorization not matched"}
+    if AUTHORIZATION == None or request.headers.get('authorization') != AUTHORIZATION:
+        return {"response": "au1thorization not matched"}
     form = dict((key, request.form.getlist(key) if len(request.form.getlist(key)) > 1 else request.form.getlist(key)[0]) for key in request.form.keys())
     data = eval(f"judge.{func}(**form)", globals(), locals())
     return {"response": "success", "data": data}
@@ -41,5 +41,5 @@ def funcs(func):
 if __name__ == '__main__':
     if not os.path.exists('./tmp'): os.mkdir('./tmp')
     starttime = time.time()
-    app.run(host='0.0.0.0', port='3000')
+    app.run()
 
