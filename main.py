@@ -8,9 +8,9 @@ import time
 
 
 from dotenv import load_dotenv
-env = load_dotenv()
+load_dotenv()
 
-AUTHORIZATION = env['AUTHORIZATION']
+AUTHORIZATION = os.getenv('AUTHORIZATION')
 
 app = Flask(__name__)
 
