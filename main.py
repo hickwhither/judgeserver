@@ -33,8 +33,9 @@ def status():
 def funcs(func):
     # if AUTHORIZATION == None or request.headers.get('authorization') != AUTHORIZATION:
     #     return {"response": "au1thorization not matched"}
-    
-    return {"response": "success", "data": eval(f"judge.{func}(**request.form)", globals(), locals())}
+    form = dict((key, request.form.getlist(key) if len(request.form.getlist(key)) > 1 else request.form.getlist(key)[0]) for key in request.form.keys())
+    data = eval(f"judge.{func}(**form)", globals(), locals())
+    return {"response": "success", "data": data}
 
 
 if __name__ == '__main__':
