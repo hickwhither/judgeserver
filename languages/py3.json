@@ -1,5 +1,5 @@
 {
     "file": "{name}.py",
-    "terminal": "python -m compileall -q -b {name}.py",
-    "executable_file": "python {name}.pyc"
+    "terminal": "",
+    "executable_file": "python {name}.py"
 }
