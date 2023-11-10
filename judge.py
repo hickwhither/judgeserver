@@ -28,7 +28,7 @@ def compile(code, lang, stdin, **kwargs):
     ### Usercode ###
     with open(lang['file'].format(name=codename), 'w', encoding="utf-8")as f:
         f.write(code)
-    try: subprocess.check_output(lang['terminal'].format(name=codename),cwd=dname, stderr=subprocess.STDOUT)
+    try: subprocess.check_output(lang['terminal'].format(name=codename),cwd=dname, stderr=subprocess.STDOUT,shell=True)
     except subprocess.CalledProcessError as e: #Fail
         return '', e
     exefile = lang['executable_file'].format(name=codename)
@@ -100,7 +100,7 @@ def judge(code, lang, generator, generatorrun, evaluator, timelimit, **kwargs):
     ### Usercode ###
     with open(lang['file'].format(name=codename), 'w', encoding="utf-8")as f:
         f.write(code)
-    try: subprocess.check_output(lang['terminal'].format(name=codename),cwd=dname, stderr=subprocess.STDOUT)
+    try: subprocess.check_output(lang['terminal'].format(name=codename),cwd=dname,stderr=subprocess.STDOUT,shell=True)
     except subprocess.CalledProcessError as e: #Fail
         return [], f"Returned as {e.returncode}\n---\n{e.output.decode()}\n---", '_', dname
     
@@ -110,14 +110,14 @@ def judge(code, lang, generator, generatorrun, evaluator, timelimit, **kwargs):
     ### Generator ###
     with open(os.path.join(dname, "gen.cpp"), 'w', encoding="utf-8")as f:
         f.write(generator)
-    try: subprocess.check_output("g++ --std=c++17 gen.cpp -o gen.exe", cwd=dname, stderr=subprocess.STDOUT)
+    try: subprocess.check_output("g++ --std=c++17 gen.cpp -o gen.exe",cwd=dname,stderr=subprocess.STDOUT,shell=True)
     except subprocess.CalledProcessError as e: #Fail
         return [], f"Generator Failed\nReturned as {e.returncode}\n---\n{e.output.decode()}\n---", '_', dname
 
     ### Evaluator ###
     with open(os.path.join(dname, "eva.cpp"), 'w', encoding="utf-8")as f:
         f.write(evaluator)
-    try: subprocess.check_output("g++ --std=c++17 eva.cpp -o eva.exe", cwd=dname, stderr=subprocess.STDOUT)
+    try: subprocess.check_output("g++ --std=c++17 eva.cpp -o eva.exe",cwd=dname, stderr=subprocess.STDOUT,shell=True)
     except subprocess.CalledProcessError as e: #Fail
         return [], f"Evaluator Failed\nReturned as {e.returncode}\n---\n{e.output.decode()}\n---", '_', dname
     

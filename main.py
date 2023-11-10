@@ -32,7 +32,7 @@ def status():
 @app.route('/func/<string:func>', methods = ["POST"])
 def funcs(func):
     if AUTHORIZATION == None or request.headers.get('authorization') != AUTHORIZATION:
-        return {"response": "au1thorization not matched"}
+        return {"response": "authorization not matched"}
     form = dict((key, request.form.getlist(key) if len(request.form.getlist(key)) > 1 else request.form.getlist(key)[0]) for key in request.form.keys())
     data = eval(f"judge.{func}(**form)", globals(), locals())
     return {"response": "success", "data": data}
