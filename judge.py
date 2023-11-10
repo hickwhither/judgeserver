@@ -30,7 +30,7 @@ def compile(code, lang, stdin, **kwargs):
         f.write(code)
     try: subprocess.check_output(lang['terminal'].format(name=codename),cwd=dname, stderr=subprocess.STDOUT,shell=True)
     except subprocess.CalledProcessError as e: #Fail
-        return '', e
+        return '', f"Returned as {e.returncode}\n---\n{e.output.decode()}\n---"
     exefile = lang['executable_file'].format(name=codename)
 
     popen = subprocess.Popen(exefile,cwd=dname,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
