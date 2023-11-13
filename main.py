@@ -3,7 +3,7 @@ from flask import Flask, request
 import requests
 import threading, time, os, shutil
 import judge
-import random, string, sys
+import random, string, sys, json
 import time
 
 
@@ -24,18 +24,14 @@ app = Flask(__name__)
 
 @app.route('/status', methods=["GET"])
 def status():
-    if AUTHORIZATION == None or request.headers.get('authorization') != AUTHORIZATION:
-        return {"response": "au1thorization not matched"}
     return {"response": "success", "uptime":starttime,"languages": judge.status()}
 
 
 @app.route('/func/<string:func>', methods = ["POST"])
 def funcs(func):
-    if AUTHORIZATION == None or request.headers.get('authorization') != AUTHORIZATION:
-        return {"response": "authorization not matched"}
     form = dict((key, request.form.getlist(key) if len(request.form.getlist(key)) > 1 else request.form.getlist(key)[0]) for key in request.form.keys())
     data = eval(f"judge.{func}(**form)", globals(), locals())
-    return {"response": "success", "data": data}
+    return json.dumps(data)
 
 
 if __name__ == '__main__':

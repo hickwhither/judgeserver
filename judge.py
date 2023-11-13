@@ -3,6 +3,9 @@ import os, json, tempfile, shutil
 import threading, subprocess, time, signal, asyncio
 import compileall
 
+def addtestlib(app, *args, **kwargs):
+    shutil.copy2("./testlib.h", os.path.join(app.dname,"testlib.h"))
+
 languages = {}
 
 
@@ -39,90 +42,78 @@ def compile(code, lang, stdin, **kwargs):
     return data[0].decode(), data[1].decode()
 
 
+class Appcompile:
+    def __init__(self, source: str, language: str, **kwargs):
+        language = languages[language]
 
-async def ajudge(dname, exefile, generatorrun, timelimit, **kwargs):
-    
-    async def single(i, cline):
-        global maxtime
-        genp = subprocess.Popen('eva.exe',cwd=dname,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
-        stdin = genp.communicate(timeout = timelimit)[0]
-        exepopen = subprocess.Popen(exefile,cwd=dname,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
-        starttime = time.time()
-        try: stdout, stderr = exepopen.communicate(stdin, timeout = timelimit)
-        except subprocess.TimeoutExpired:
-            result[i] = (None, '', '', '', '', timelimit)
-            return
-        timedelta = time.time() - starttime
-        stdin = stdin.decode()
-        stdout = stdout.decode()
-        stderr = stderr.decode()
+        self.td = tempfile.TemporaryDirectory(prefix="tcojjudge_")
+        self.dname = self.td.name
+        codename = os.path.join(self.dname, "main")
 
-        if exepopen.returncode:
-            result[i] = (None, exepopen.stderr)
-            return
-
-        with open(os.path.join(dname,'stdin.txt'), 'w') as f: f.write(stdin)
-        with open(os.path.join(dname,'stdout.txt'), 'w') as f: f.write(stdout)
-        evap = subprocess.Popen('eva.exe',cwd=dname,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
-        pin, perr = evap.communicate(timeout = timelimit)
-        pin = pin.decode()
-        perr = perr.decode()
+        with open(language['file'].format(name=codename), 'w', encoding="utf-8")as f:
+            f.write(source)
         
-        result[i] = pin, perr, stdin, stdout, stderr, timedelta
+        if kwargs.get("before_compile"):
+            for i in kwargs['before_compile']:
+                i(self)
+        
+        try: subprocess.check_output(language['terminal'].format(name=codename),cwd=self.dname,stderr=subprocess.STDOUT,shell=True)
+        except subprocess.CalledProcessError as e: #Fail
+            self.compile = e.returncode, e.output.decode()
+        else:
+            self.exefile = language['executable_file'].format(name= codename)
+            self.compile = 0, "Success"
 
-    timelimit = float(timelimit)
-    maxtime = 0.0
+    def communicate(self, stdin: str, timeout = None):
+        exepopen = subprocess.Popen(self.exefile,cwd=self.dname,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
+        if timeout:
+            starttime = time.time()
+            stdout, stderr = exepopen.communicate(stdin.encode(), timeout = timeout)
+            timedelta = time.time() - starttime
+            return stdout.decode(), timedelta
+        else:
+            stdout, stderr = exepopen.communicate(stdin.encode())
+            return stdout.decode()
+
+
+def ajudge(user: Appcompile, evaluator: Appcompile, inputs, timelimit, **kwargs):
+
+
+    def single(stdin):
+        global result
+        starttime = time.time()
+        try:
+            stdout, timedelta = user.communicate(stdin, timeout = timelimit)
+        except subprocess.TimeoutExpired:
+            return (0, 'Time Limit Exceeded', timelimit)
+        else:
+            evalp = evaluator.communicate(f"{stdin}\ns{stdout}")
+            return evalp, "", timedelta
+
     
-    result = [None for i in range(len(generatorrun))]
-
-    asyncio.gather(*[single(i, generatorrun[i]) for i in range(len(generatorrun))])
-
-    # for i in result:
+    timelimit = float(timelimit)
+    result = [single(i) for i in inputs]
+    maxtime = max(i[2] for i in result)
 
     return result, maxtime
 
 
-
-
-def judge(code, lang, generator, generatorrun, evaluator, timelimit, **kwargs):
+def judge(code, lang, evaluator, evaluatorlang, inputs, timelimit, **kwargs):
     """
-    - list [(evaluate, evaluator_response, stdin, stdout, stderr, time)]
+    - list [(evaluate, evaluator_response, time)]
     - Compiler status
     - Max time
     """
-    lang = languages[lang]
     
-    # Creating tempdict
-    td = tempfile.TemporaryDirectory(prefix="judgeserver_")
-    dname = td.name
-    codename = os.path.join(dname, "main")
-
-    ### Usercode ###
-    with open(lang['file'].format(name=codename), 'w', encoding="utf-8")as f:
-        f.write(code)
-    try: subprocess.check_output(lang['terminal'].format(name=codename),cwd=dname,stderr=subprocess.STDOUT,shell=True)
-    except subprocess.CalledProcessError as e: #Fail
-        return [], f"Returned as {e.returncode}\n---\n{e.output.decode()}\n---", '_', dname
+    user = Appcompile(code, lang)
+    if user.compile[0]: #fail
+        return [], f"Compiler Failed\nReturned as {user.compile[0]}\n---\n{user.compile[1]}\n---", '_'
+    evaluator = Appcompile(evaluator, evaluatorlang, before_compile = [addtestlib])
+    if evaluator.compile[0]:
+        return [], f"Evaluator Failed\nReturned as {evaluator.compile[0]}\n---\n{evaluator.compile[1]}\n---", '_'
     
-    exefile = lang['executable_file'].format(name=codename)
-
-    shutil.copy2("./testlib.h", os.path.join(dname,"testlib.h"))
-    ### Generator ###
-    with open(os.path.join(dname, "gen.cpp"), 'w', encoding="utf-8")as f:
-        f.write(generator)
-    try: subprocess.check_output("g++ --std=c++17 gen.cpp -o gen.exe",cwd=dname,stderr=subprocess.STDOUT,shell=True)
-    except subprocess.CalledProcessError as e: #Fail
-        return [], f"Generator Failed\nReturned as {e.returncode}\n---\n{e.output.decode()}\n---", '_', dname
-
-    ### Evaluator ###
-    with open(os.path.join(dname, "eva.cpp"), 'w', encoding="utf-8")as f:
-        f.write(evaluator)
-    try: subprocess.check_output("g++ --std=c++17 eva.cpp -o eva.exe",cwd=dname, stderr=subprocess.STDOUT,shell=True)
-    except subprocess.CalledProcessError as e: #Fail
-        return [], f"Evaluator Failed\nReturned as {e.returncode}\n---\n{e.output.decode()}\n---", '_', dname
     
-
-    res = asyncio.run(ajudge(dname, exefile, generatorrun, timelimit))
-
-    return res[0], "", res[1], dname
+    res = ajudge(user, evaluator, inputs, timelimit)
+    
+    return res[0], "", res[1]
     
