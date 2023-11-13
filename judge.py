@@ -70,25 +70,24 @@ class Appcompile:
             starttime = time.time()
             stdout, stderr = exepopen.communicate(stdin.encode(), timeout = timeout)
             timedelta = time.time() - starttime
-            return stdout.decode(), timedelta
+            return stdout.decode(), stderr.decode(), timedelta
         else:
             stdout, stderr = exepopen.communicate(stdin.encode())
-            return stdout.decode()
+            return stdout.decode(), stderr.decode()
 
 
 def ajudge(user: Appcompile, evaluator: Appcompile, inputs, timelimit, **kwargs):
 
 
     def single(stdin):
-        global result
         starttime = time.time()
         try:
-            stdout, timedelta = user.communicate(stdin, timeout = timelimit)
+            stdout, stderr, timedelta = user.communicate(stdin, timeout = timelimit)
         except subprocess.TimeoutExpired:
             return (0, 'Time Limit Exceeded', timelimit)
         else:
-            evalp = evaluator.communicate(f"{stdin}\ns{stdout}")
-            return evalp, "", timedelta
+            evares, evaerr = evaluator.communicate(f"{stdin}\n{stdout}")
+            return evares, evaerr, timedelta
 
     
     timelimit = float(timelimit)
