@@ -106,10 +106,10 @@ def judge(code, lang, evaluator, evaluatorlang, inputs, timelimit, **kwargs):
     
     user = Appcompile(code, lang)
     if user.compile[0]: #fail
-        return [], f"Compiler Failed\nReturned as {user.compile[0]}\n---\n{user.compile[1]}\n---", '_'
+        return [], f"Compiler Failed\nReturned as {user.compile[0]}\n---\n{user.compile[1]}\n---", 0
     evaluator = Appcompile(evaluator, evaluatorlang, before_compile = [addtestlib])
     if evaluator.compile[0]:
-        return [], f"Evaluator Failed\nReturned as {evaluator.compile[0]}\n---\n{evaluator.compile[1]}\n---", '_'
+        return [], f"Evaluator Failed\nReturned as {evaluator.compile[0]}\n---\n{evaluator.compile[1]}\n---", 0
     
     
     res = ajudge(user, evaluator, inputs, timelimit)
